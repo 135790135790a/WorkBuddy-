@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# WorkBuddy local workspace data (contains credentials / memory / automation config)
+.workbuddy/
+signin.log
+
+# 本机运行数据（含推送密钥 / 签到历史 / 生成的报告）
+notify_config.json
+notify_state.json
+signin_history.json
+monitor_state.json
+monitor_state.json.bak
+heartbeat.json
+report.html
+_shortcut_tmp.lnk
+
+# 分享卡片（每次生成都会覆盖，不入库）
+streak-card.png
+streak-card-wide.png
+share-card.html
+share-card-wide.html
+# 签到总览（每次运行自动重写）
+history.html
+
+# 审计归档：报告快照与原始响应凭证（含登录态相关返回，不入库）
+reports/
+evidence/
+
+# 损坏文件的隔离备份（store.py 自动生成）
+*.corrupt-*
+
+# 开发调试产物（截图 / 临时渲染页 / 备份），不入库
+_r_*.html
+_tmpv.html
+_rules_*.png
+*-preview.png
+export_preview.png
+report.html.bak-*
+*.bak-*
+tray.log
