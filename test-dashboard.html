@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="wb-token" content="__WB_TOKEN__" />
+<title>WorkBuddy 自动签到 · 测试面板</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --ink:#1f2933; --muted:#5b6672;
+    --line:#e5e7eb; --brand:#1F6FEB; --green:#16a34a; --red:#dc2626;
+    --amber:#d97706; --soft:#eef2ff;
+    --glass:rgba(255,255,255,.88);
+  }
+  *{box-sizing:border-box}
+
+  /* ============ 壁纸层 ============ */
+  /* 三层结构：虚化填充(cover) → 完整图片(contain) → 半透明薄纱
+     contain 保证图片 100% 全貌不被裁切；虚化层负责填补两侧/上下留白 */
+  .bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
+    background:#dde5ef}
+  .bg-blur{position:absolute;inset:-70px;
+    background-image:var(--wp-img, url("wallpaper.jpg"));
+    background-position:center;background-size:cover;background-repeat:no-repeat;
+    filter:blur(40px) saturate(1.2) brightness(1.05);transform:scale(1.15);opacity:.8}
+  .bg-full{position:absolute;inset:0;
+    background-image:var(--wp-img, url("wallpaper.jpg"));
+    background-position:center center;background-size:contain;background-repeat:no-repeat;
+    filter:saturate(1.06) contrast(1.02) drop-shadow(0 18px 40px rgba(20,30,50,.18))}
+  .bg-veil{position:absolute;inset:0;opacity:var(--veil,.5);
+    background:linear-gradient(180deg,rgba(255,255,255,.30) 0%,rgba(255,255,255,.45) 45%,
+      rgba(255,255,255,.60) 100%)}
+
+  body.wp-cover .bg-full{background-size:cover}
+  body.wp-stretch .bg-full{background-size:100% 100%}
+body.wp-off .bg{display:none}
+body.wp-off{background:#eef2f7}
+
+/* 暗色模式 */
+body.dark{
+  color-scheme:dark;
+  --bg:#0f1620; --card:rgba(30,41,59,.82); --glass:rgba(30,41,59,.82);
+  --ink:#e6edf5; --muted:#9fb0c3; --line:#2c3e54; --brand:#4f9bff; --soft:#172339;
+}
+body.dark h1{color:#e6edf5;text-shadow:none}
+body.dark .sub{color:#a9b8c9;text-shadow:none}
+body.dark .metric .k,body.dark .card h2{color:#cbd5e1}
+body.dark .report{background:rgba(12,18,28,.72);color:#cbd5e1}
+body.dark .empty{background:rgba(30,41,59,.7);border-color:rgba(120,140,170,.3);color:#a9b8c9}
+body.dark .bg-veil{background:linear-gradient(180deg,rgba(8,12,18,.5),rgba(8,12,18,.66),rgba(8,12,18,.82))}
+body.dark .gear,body.dark .settings{
+  background:rgba(30,41,59,.94);color:#e6edf5;border-color:rgba(255,255,255,.14);
+  box-shadow:0 12px 34px rgba(0,0,0,.5)}
+body.dark .settings::after{
+  background:linear-gradient(180deg,rgba(30,41,59,0),rgba(30,41,59,.97) 82%)}
+body.dark .seg3 button,body.dark .filebtn{background:#1e293b;color:#a9b8c9}
+body.dark .seg3 button.on{background:var(--brand);color:#fff}
+body.dark .chip{background:rgba(255,255,255,.08)}
+body.dark .restore-hint{background:rgba(8,14,24,.72)}
+body.dark.wp-off{background:#0f1620}
+.row.off{opacity:.45;pointer-events:none;transition:opacity .2s}
+
+  body{margin:0;background:transparent;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",
+    "PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);
+    line-height:1.6;padding:28px 16px 60px;min-height:100vh}
+  .wrap{max-width:760px;margin:0 auto;position:relative;z-index:1}
+  h1{font-size:22px;margin:0 0 4px;color:#14263c;
+    text-shadow:0 1px 2px rgba(255,255,255,.85)}
+  .sub{color:#3f4d5e;font-size:13px;margin-bottom:20px;
+    text-shadow:0 1px 2px rgba(255,255,255,.8)}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:22px;
+    background:var(--glass);border:1px solid rgba(255,255,255,.7);border-radius:14px;
+    padding:12px 14px;backdrop-filter:blur(14px) saturate(1.2);
+    -webkit-backdrop-filter:blur(14px) saturate(1.2);
+    box-shadow:0 6px 22px rgba(25,40,70,.10)}
+  button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:10px 18px;
+    background:var(--brand);color:#fff;font-weight:600;transition:.15s}
+  button:hover{filter:brightness(1.06)}
+  button.ghost{background:var(--soft);color:var(--brand)}
+  button:disabled{opacity:.55;cursor:not-allowed}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg label{padding:9px 14px;font-size:13px;cursor:pointer;user-select:none}
+  .seg input{display:none}
+  .seg label.on{background:var(--brand);color:#fff}
+  .seg label:not(.on){background:#fff;color:var(--muted)}
+  .hint{font-size:12px;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+  .metric{background:var(--glass);border:1px solid rgba(255,255,255,.75);border-radius:14px;
+    padding:16px;text-align:center;
+    backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);
+    box-shadow:0 6px 22px rgba(25,40,70,.10)}
+  .metric .v{font-size:28px;font-weight:700;color:var(--brand)}
+  .metric .k{font-size:12px;color:var(--muted);margin-top:2px}
+  .card{background:var(--glass);border:1px solid rgba(255,255,255,.75);border-radius:14px;
+    padding:18px;margin-bottom:16px;
+    backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);
+    box-shadow:0 8px 26px rgba(25,40,70,.11)}
+  .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .badge{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+  .b-ok{background:#dcfce7;color:var(--green)}
+  .b-warn{background:#fef3c7;color:var(--amber)}
+  .b-bad{background:#fee2e2;color:var(--red)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-size:13px;padding:6px 11px;border-radius:9px;border:1px solid var(--line);
+    background:rgba(250,250,250,.9)}
+  .chip.ok{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+  .chip.fail{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+  .chip.skip{background:#fffbeb;border-color:#fde68a;color:#92400e}
+  .report{white-space:pre-wrap;font-size:13px;color:#374151;background:rgba(250,250,250,.94);
+    border:1px solid var(--line);border-radius:10px;padding:12px;max-height:240px;
+    overflow:auto}
+  details{margin-top:6px}
+  summary{cursor:pointer;color:var(--muted);font-size:13px}
+  pre{white-space:pre-wrap;font-size:12px;background:#0f172a;color:#e2e8f0;
+    padding:12px;border-radius:10px;overflow:auto;max-height:300px}
+  .empty{color:#3f4d5e;font-size:14px;text-align:center;padding:26px 0;
+    background:var(--glass);border:1px dashed rgba(120,140,170,.45);border-radius:14px;
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid #fff;
+    border-top-color:transparent;border-radius:50%;animation:s .7s linear infinite;
+    vertical-align:-2px;margin-right:6px}
+  @keyframes s{to{transform:rotate(360deg)}}
+
+  /* 右上角设置按钮 + 面板 */
+  .gear{position:fixed;top:16px;right:16px;z-index:6;width:42px;height:42px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;
+    background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.85);color:#33415c;
+    box-shadow:0 6px 20px rgba(25,40,70,.16);backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);transition:.2s;cursor:pointer}
+  .gear:hover{transform:rotate(38deg);filter:brightness(1.04)}
+  .settings{position:fixed;top:66px;right:16px;z-index:7;width:340px;
+    background:rgba(255,255,255,.95);border:1px solid rgba(255,255,255,.85);border-radius:16px;
+    padding:0;backdrop-filter:blur(16px) saturate(1.2);
+    -webkit-backdrop-filter:blur(16px) saturate(1.2);box-shadow:0 12px 34px rgba(25,40,70,.2);
+    font-size:13px;color:var(--ink);display:none;
+    /* 结构：固定外壳 + 内部滚动区。整体高度跟着视口走，超出部分在内部滚动 */
+    max-height:calc(100vh - 82px);overflow:hidden;flex-direction:column}
+  .settings.open{display:flex;animation:pop .18s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  .settings-body{overflow-y:auto;overscroll-behavior:contain;min-height:0;
+    padding:0 16px 16px;scrollbar-gutter:stable;-webkit-overflow-scrolling:touch}
+  .settings-body::-webkit-scrollbar{width:6px}
+  .settings-body::-webkit-scrollbar-thumb{background:rgba(120,140,170,.38);border-radius:99px}
+  .settings-body::-webkit-scrollbar-thumb:hover{background:rgba(120,140,170,.6)}
+  .settings-body::-webkit-scrollbar-track{background:transparent}
+  .settings-h{flex:0 0 auto;padding:14px 16px 8px;font-weight:700;font-size:14px;color:#14263c}
+  /* 还有内容没露出时，底部叠一层渐隐，避免看着像被硬切掉 */
+  .settings::after{content:"";position:absolute;left:0;right:0;bottom:0;height:30px;
+    pointer-events:none;opacity:0;transition:opacity .16s;border-radius:0 0 16px 16px;
+    background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.97) 82%)}
+  .settings.can-scroll:not(.at-end)::after{opacity:1}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 0;border-top:1px solid rgba(120,140,170,.18)}
+  .row:first-of-type{border-top:0}
+  .row > span{color:var(--muted);white-space:nowrap}
+  .seg3{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg3 button{padding:6px 11px;font-size:12px;font-weight:600;border:0;background:#fff;
+    color:var(--muted);cursor:pointer;white-space:nowrap}
+  .seg3 button.on{background:var(--brand);color:#fff}
+  .seg3 button+button{border-left:1px solid var(--line)}
+  .filebtn{display:inline-flex;align-items:center;padding:6px 11px;font-size:12px;font-weight:600;
+    background:#fff;color:var(--muted);cursor:pointer;border:0;white-space:nowrap}
+  .filebtn:hover{background:#f3f6fb}
+  .filebtn input{display:none}
+  input[type=range]{width:128px;accent-color:var(--brand)}
+  .sw{position:relative;display:inline-block;width:42px;height:24px;flex:none}
+  .sw input{display:none}
+  .sw .track{position:absolute;inset:0;border-radius:999px;background:#cbd5e1;transition:.2s;cursor:pointer}
+  .sw .track:before{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;
+    border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .sw input:checked + .track{background:var(--brand)}
+  .sw input:checked + .track:before{transform:translateX(18px)}
+  .ival{color:var(--muted);font-size:12px;min-width:34px;text-align:right;flex:none}
+  #pollIntRow{transition:opacity .2s}
+  #pollIntRow.off{opacity:.45;pointer-events:none}
+
+  @media (max-width:620px){
+    .grid{grid-template-columns:1fr}
+    body{padding:20px 12px 80px}
+  }
+  @media (max-width:430px){
+    .settings{width:calc(100vw - 28px);right:14px}
+  }
+  /* 窗口较矮（比如嵌在主控台里）时收紧行高，少滚一点 */
+  @media (max-height:680px){
+    .settings .row{padding:7px 0}
+    .settings .settings-h{padding:12px 16px 6px}
+  }
+
+  /* 点背景：隐藏数据 / 恢复 */
+  .wrap{transition:opacity .28s ease, transform .28s ease}
+  body.hide-ui .wrap{opacity:0;visibility:hidden;pointer-events:none;
+    transform:translateY(10px) scale(.99)}
+  .restore-hint{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;
+    display:none;color:#fff;background:rgba(18,28,48,.55);padding:10px 20px;border-radius:999px;
+    font-size:14px;letter-spacing:.5px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none}
+  body.hide-ui .restore-hint{display:block}
+
+  /* 运行历史 */
+  .hlist{display:flex;flex-direction:column;gap:8px}
+  .hrow{font-size:13px;color:var(--muted);line-height:1.5;
+    border-left:3px solid var(--line);padding:2px 0 2px 10px;background:rgba(245,247,250,.5)}
+  .hrow b{color:var(--ink)}
+  .hrep{font-size:12px;color:#6b7785;margin-top:2px;word-break:break-all}
+  .hclear{margin-left:auto;font-size:12px;font-weight:600;cursor:pointer;
+    color:var(--muted);background:transparent;padding:2px 8px}
+  .hclear:hover{color:var(--red)}
+
+  /* 定时任务管理 */
+  .task-presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .preset-btn{font-size:12px;padding:6px 10px;border-radius:9px;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);cursor:pointer}
+  .preset-btn:hover{border-color:var(--brand);color:var(--brand)}
+  .task-list{display:flex;flex-direction:column;gap:8px}
+  .task-row{border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+    background:rgba(250,250,250,.6);display:flex;flex-direction:column;gap:6px}
+  body.dark .task-row{background:rgba(30,41,59,.6)}
+  .task-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .task-name{font-weight:700;font-size:13px}
+  .task-meta{font-size:12px;color:var(--muted)}
+  .task-actions{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+  .task-actions button{font-size:12px;padding:4px 9px;border-radius:8px;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);cursor:pointer}
+  .task-actions button:hover{border-color:var(--brand);color:var(--brand)}
+  .task-actions .danger:hover{border-color:var(--red);color:var(--red)}
+  .task-new{margin-top:12px}
+  .task-new summary{cursor:pointer;font-size:13px;color:var(--brand);font-weight:600}
+  .task-form{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .task-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+  .task-form input,.task-form select{padding:7px 9px;border-radius:8px;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);font-size:13px}
+  .task-form button{align-self:flex-start;padding:7px 14px;border-radius:9px;border:1px solid var(--brand);
+    background:var(--brand);color:#fff;cursor:pointer;font-size:13px}
+  .task-form button:hover{filter:brightness(1.06)}
+  .nrow-inline{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted)}
+
+  /* 推送通知 */
+  .notify-form{display:flex;flex-direction:column;gap:9px}
+  .notify-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+  .notify-form input,.notify-form select{padding:7px 9px;border-radius:8px;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);font-size:13px}
+  .notify-form .nrow{flex-direction:row;align-items:center;justify-content:space-between}
+  .notify-opts{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--ink);align-items:center}
+  .notify-opts .chk{display:flex;flex-direction:row;align-items:center;gap:5px;color:var(--ink)}
+  .notify-opts input[type=number]{width:58px;padding:4px 6px;border-radius:7px;border:1px solid var(--line);
+    background:var(--card);color:var(--ink)}
+  .notify-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .notify-actions button{padding:7px 14px;border-radius:9px;border:1px solid var(--brand);
+    background:var(--brand);color:#fff;cursor:pointer;font-size:13px}
+  .notify-actions button.ghost{background:var(--card);color:var(--ink);border-color:var(--line)}
+  .notify-actions button.ghost:hover{border-color:var(--brand);color:var(--brand)}
+  #nEmailRows{flex-direction:column;gap:8px}
+
+  /* 日志与体检 */
+  .health-actions{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+  .health-actions button{padding:7px 14px;border-radius:9px;border:1px solid var(--brand);
+    background:var(--brand);color:#fff;cursor:pointer;font-size:13px}
+  .health-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+  .health-row{display:flex;align-items:flex-start;gap:8px;font-size:13px;padding:7px 10px;
+    border-radius:9px;border:1px solid var(--line);background:rgba(250,250,250,.55)}
+  body.dark .health-row{background:rgba(30,41,59,.55)}
+  .health-row .nm{font-weight:600;min-width:96px;flex:none}
+  .health-row .dt{color:var(--muted);font-size:12px;word-break:break-all}
+  .log-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+  .log-toolbar select,.log-toolbar input{padding:6px 8px;border-radius:8px;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);font-size:12px}
+  .log-toolbar input{flex:1;min-width:120px}
+  .log-toolbar button{padding:6px 12px;border-radius:8px;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);cursor:pointer;font-size:12px}
+  .log-toolbar button:hover{border-color:var(--brand);color:var(--brand)}
+  .log-box{max-height:320px;overflow:auto;border-radius:10px;border:1px solid var(--line);
+    background:rgba(250,250,250,.8);padding:8px 10px;
+    font-family:ui-monospace,Consolas,"Courier New",monospace;font-size:12px;line-height:1.55}
+  body.dark .log-box{background:rgba(12,18,28,.78)}
+  .log-line{white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal;padding:3px 0;
+    border-bottom:1px dashed rgba(120,140,170,.16)}
+  .log-line.err{color:#b91c1c}
+  .log-line.warn{color:#b45309}
+  .log-line.ok{color:#15803d}
+  body.dark .log-line.err{color:#fca5a5}
+  body.dark .log-line.warn{color:#fcd34d}
+  body.dark .log-line.ok{color:#86efac}
+  /* 连续重复的日志合并成一条，避免满屏同一条红字被误当成新故障 */
+  .dup{display:inline-block;margin-left:6px;padding:0 6px;border-radius:99px;
+    font-size:11px;font-weight:700;background:rgba(120,140,170,.16);color:#475569;
+    vertical-align:1px;cursor:pointer;user-select:none}
+  .dup:hover{background:rgba(120,140,170,.3)}
+  body.dark .dup{background:rgba(148,163,184,.22);color:#cbd5e1}
+  .log-more{display:none;padding:2px 0 4px 10px;margin-left:2px;
+    border-left:2px solid rgba(120,140,170,.25)}
+  .log-group.open .log-more{display:block}
+  .log-group.open .dup{background:rgba(120,140,170,.3)}
+  .log-times{font-size:12px;color:#64748b;line-height:1.75;
+    font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+  body.dark .log-times{color:#94a3b8}
+
+  /* 收益与趋势 */
+  .ins-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+  @media (max-width:620px){ .ins-summary{grid-template-columns:repeat(2,1fr)} }
+  .ins-summary .metric{padding:10px}
+  .ins-summary .metric .v{font-size:18px}
+  .ins-chart{margin:2px 0 14px}
+  .ins-bill-h{font-size:13px;font-weight:600;margin:2px 0 8px;display:flex;gap:8px;align-items:baseline}
+  .bill{display:flex;flex-direction:column;gap:6px}
+  .bill-item{font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);
+    background:rgba(250,250,250,.55)}
+  body.dark .bill-item{background:rgba(30,41,59,.55)}
+  /* 历史报告归档 */
+  .rep-list{display:flex;flex-direction:column;gap:6px}
+  .rep-row{display:flex;align-items:center;gap:10px;font-size:13px;padding:7px 10px;
+    border-radius:8px;border:1px solid var(--line);background:rgba(250,250,250,.55)}
+  body.dark .rep-row{background:rgba(30,41,59,.55)}
+  .rep-time{font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+  .rep-badge{font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap}
+  .rep-badge.ok{color:#166534;background:rgba(22,163,74,.14)}
+  .rep-badge.bad{color:#b91c1c;background:rgba(220,38,38,.14)}
+  .rep-badge.warn{color:#92400e;background:rgba(217,119,6,.16)}
+  body.dark .rep-badge.ok{color:#86efac;background:rgba(22,163,74,.22)}
+  body.dark .rep-badge.bad{color:#fca5a5;background:rgba(220,38,38,.22)}
+  body.dark .rep-badge.warn{color:#fcd34d;background:rgba(217,119,6,.22)}
+  .rep-meta{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+  .rep-act{display:flex;gap:8px;flex:0 0 auto}
+  .rep-act a{font-size:12px;color:var(--brand);text-decoration:none;padding:3px 8px;
+    border:1px solid rgba(31,111,235,.35);border-radius:7px}
+  .rep-act a:hover{background:rgba(31,111,235,.1)}
+  .rep-act a.off{color:var(--muted);border-color:var(--line);pointer-events:none;opacity:.5}
+  /* 接口失效监测 */
+  .mon-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .mon-state{font-size:13px;font-weight:700;padding:4px 12px;border-radius:999px;white-space:nowrap}
+  .mon-state.ok{color:#166534;background:rgba(22,163,74,.14)}
+  .mon-state.watch{color:#92400e;background:rgba(217,119,6,.16)}
+  .mon-state.drift{color:#b91c1c;background:rgba(220,38,38,.16)}
+  body.dark .mon-state.ok{color:#86efac;background:rgba(22,163,74,.22)}
+  body.dark .mon-state.watch{color:#fcd34d;background:rgba(217,119,6,.22)}
+  body.dark .mon-state.drift{color:#fca5a5;background:rgba(220,38,38,.24)}
+  .mon-block{font-size:13px;margin:0 0 10px;padding:10px 12px;border-radius:9px;
+    border:1px solid var(--line);background:rgba(250,250,250,.6)}
+  body.dark .mon-block{background:rgba(30,41,59,.55)}
+  .mon-block h3{font-size:13px;font-weight:700;margin:0 0 6px;color:var(--ink)}
+  .mon-block ul,.mon-block ol{margin:0;padding-left:20px;line-height:1.65}
+  .mon-block li{margin:2px 0}
+  .mon-block.drift{border-color:rgba(220,38,38,.35);background:rgba(220,38,38,.07)}
+  .mon-run{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:6px 10px;
+    border-radius:8px;border:1px solid var(--line);background:rgba(250,250,250,.55)}
+  body.dark .mon-run{background:rgba(30,41,59,.55)}
+  .mon-run .t{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  /* 连签里程碑 */
+  .ms-list{display:flex;flex-direction:column;gap:8px}
+  .ms-item{border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:rgba(250,250,250,.55)}
+  body.dark .ms-item{background:rgba(30,41,59,.5)}
+  .ms-top{display:flex;align-items:baseline;gap:8px;font-size:13px;font-weight:600;margin-bottom:6px}
+  .ms-top .ms-gap{margin-left:auto;font-weight:500;font-size:12px;color:var(--muted)}
+  .ms-bar{height:8px;border-radius:999px;background:rgba(120,140,170,.22);overflow:hidden}
+  .ms-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,rgba(22,163,74,.6),#16a34a)}
+  .ms-item.done .ms-fill{background:linear-gradient(90deg,#16a34a,#22c55e)}
+  .ms-item.done .ms-gap{color:#16a34a;font-weight:600}
+  body.dark .ms-item.done .ms-gap{color:#86efac}
+  .ms-eta{font-size:11.5px;color:var(--muted);margin-top:5px}
+  .countdown{font-size:12px;font-weight:600;color:var(--brand);background:rgba(31,111,235,.1);
+    padding:4px 10px;border-radius:999px;white-space:nowrap}
+  body.dark .countdown{background:rgba(79,155,255,.16);color:#9cc4ff}
+
+  /* ---- 暗色模式：设置面板补全（放在最后，确保覆盖前面的浅色规则）---- */
+  body.dark .settings .settings-h{color:#e6edf5}
+  body.dark .settings .settings-body{scrollbar-color:rgba(148,163,184,.45) transparent}
+  body.dark .settings .settings-body::-webkit-scrollbar-thumb{background:rgba(148,163,184,.42)}
+  body.dark .settings .row{border-top-color:rgba(148,163,184,.18)}
+  body.dark .settings .row > span{color:#b6c4d6}
+  body.dark .settings .row.off{opacity:.5}
+  body.dark .settings .seg3{border-color:rgba(148,163,184,.28)}
+  body.dark .settings .seg3 button,
+  body.dark .settings .filebtn{background:#22304a;color:#c2d0e2}
+  body.dark .settings .seg3 button+button{border-left-color:rgba(148,163,184,.22)}
+  body.dark .settings .seg3 button:hover,
+  body.dark .settings .filebtn:hover{background:#2b3b58}
+  body.dark .settings .seg3 button.on{background:var(--brand);color:#fff}
+  body.dark .settings .sw .track{background:#3a4a63}
+  body.dark .settings .sw input:checked + .track{background:var(--brand)}
+  body.dark .settings .ival{color:#9fb0c3}
+  body.dark .settings input[type=range]{accent-color:var(--brand)}
+</style>
+</head>
+<body class="wp-contain">
+
+<div class="bg" aria-hidden="true">
+  <div class="bg-blur"></div>
+  <div class="bg-full"></div>
+  <div class="bg-veil"></div>
+</div>
+
+<div class="wrap">
+  <h1>🤖 WorkBuddy 自动签到 · 测试面板</h1>
+  <div class="sub">点按钮跑一次 signin.py，结果以卡片直观呈现。脚本读取本机登录态，仅作用于你自己的账号。</div>
+
+  <div class="bar">
+    <button id="run">▶ 运行测试</button>
+    <div class="seg" id="mode">
+      <label class="on"><input type="radio" name="m" value="auto" checked>完整运行 auto</label>
+      <label><input type="radio" name="m" value="status">只读状态 status</label>
+    </div>
+    <span class="hint" id="status">就绪</span>
+    <span class="countdown" id="countdown">下次签到 —</span>
+  </div>
+
+  <div id="out">
+    <div class="empty">尚未运行。点「运行测试」开始。</div>
+  </div>
+
+  <div class="card" id="history">
+    <h2>🕘 运行历史 <button class="hclear" id="hclear">清空</button></h2>
+    <div class="hlist" id="historyList"></div>
+  </div>
+
+  <div class="card" id="tasksCard">
+    <h2>⏰ 定时任务 <button class="hclear" id="taskRefresh">刷新</button></h2>
+    <div class="task-presets">
+      <button class="preset-btn" data-preset="daily">＋ 每日签到 00:05</button>
+      <button class="preset-btn" data-preset="poll">＋ 轮询补签 6 次/天</button>
+      <button class="preset-btn" id="taskNotifyAll">🔔 让现有任务带上推送</button>
+    </div>
+    <div class="task-list" id="taskList"><div class="hint">加载中…</div></div>
+    <details class="task-new">
+      <summary>＋ 自定义新建 / 修改任务</summary>
+      <div class="task-form">
+        <label>任务名 <input id="tName" value="WorkBuddyAutoSignin" spellcheck="false"></label>
+        <label>运行时间（HH:MM，多个用逗号分隔）<input id="tTime" value="00:05" placeholder="例如 01:00, 05:00, 09:00" spellcheck="false"></label>
+        <label>运行模式
+          <select id="tMode">
+            <option value="silent">silent（每日签到，静默）</option>
+            <option value="silent-poll">silent-poll（轮询补签 + 成长中心）</option>
+            <option value="auto">auto（完整运行）</option>
+            <option value="growth">growth（仅成长中心）</option>
+          </select>
+        </label>
+        <div class="nrow-inline"><span>运行后推送通知</span>
+          <label class="sw"><input type="checkbox" id="tRunner" checked><span class="track"></span></label>
+        </div>
+        <button id="tCreate">保存任务</button>
+        <span class="hint" id="tMsg"></span>
+      </div>
+    </details>
+  </div>
+
+  <div class="card" id="notifyCard">
+    <h2>🔔 推送通知 <span class="hint" id="notifyState"></span></h2>
+    <div class="notify-form">
+      <label class="nrow"><span>启用推送</span>
+        <label class="sw"><input type="checkbox" id="nEnabled"><span class="track"></span></label>
+      </label>
+      <label>推送渠道
+        <select id="nChannel">
+          <option value="wecom">企业微信机器人</option>
+          <option value="dingtalk">钉钉机器人</option>
+          <option value="feishu">飞书机器人</option>
+          <option value="bark">Bark (iOS)</option>
+          <option value="telegram">Telegram</option>
+          <option value="generic">通用 Webhook</option>
+          <option value="email">邮件 SMTP</option>
+        </select>
+      </label>
+      <label id="nUrlRow">Webhook 地址
+        <input id="nUrl" placeholder="https://..." spellcheck="false">
+      </label>
+      <label id="nSecretRow">密钥 / Token（钉钉加签、Telegram token、Bark key）
+        <input id="nSecret" placeholder="留空不改" spellcheck="false">
+      </label>
+      <label id="nChatRow">Telegram chat_id
+        <input id="nChat" placeholder="例如 123456789" spellcheck="false">
+      </label>
+      <div id="nEmailRows" style="display:none">
+        <label>SMTP 主机 <input id="nHost" placeholder="smtp.example.com" spellcheck="false"></label>
+        <label>端口 <input id="nPort" type="number" value="465"></label>
+        <label>用户名 <input id="nUser" placeholder="you@example.com" spellcheck="false"></label>
+        <label>密码 / 授权码 <input id="nPass" type="password" placeholder="留空不改"></label>
+        <label>收件人 <input id="nTo" placeholder="you@example.com" spellcheck="false"></label>
+      </div>
+      <div class="notify-opts">
+        <label class="chk"><input type="checkbox" id="nOnSuccess" checked> 成功发摘要</label>
+        <label class="chk"><input type="checkbox" id="nOnFailure" checked> 失败告警</label>
+        <label class="chk"><input type="checkbox" id="nDaily"> 每日摘要</label>
+        <label class="chk">连续失败 <input id="nThreshold" type="number" min="1" value="1"> 次才告警</label>
+      </div>
+      <div class="notify-actions">
+        <button id="nSave">保存</button>
+        <button id="nTest" class="ghost">发送测试</button>
+        <span class="hint" id="nMsg"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="healthCard">
+    <h2>🩺 日志与体检 <span class="hint" id="healthSummary"></span></h2>
+    <div class="health-actions">
+      <button id="healthRun">一键体检</button>
+      <span class="hint" id="healthMsg"></span>
+    </div>
+    <div class="health-list" id="healthList"><div class="hint">点「一键体检」检查解释器 / 凭据 / 网络 / 任务 / 推送 / 日志。</div></div>
+    <div class="log-toolbar">
+      <span class="hint">日志</span>
+      <select id="logLines"><option value="100">最近 100 行</option><option value="200" selected>200 行</option><option value="500">500 行</option></select>
+      <input id="logFilter" placeholder="过滤关键词（如 ERROR / 失败 / 时间）" spellcheck="false">
+      <button id="logRefresh">刷新</button>
+    </div>
+    <div class="log-box" id="logBox"><div class="hint">加载中…</div></div>
+  </div>
+
+  <div class="card" id="insightsCard">
+    <h2>📈 收益与趋势 <button class="hclear" id="insRefresh">刷新</button></h2>
+    <div class="ins-summary" id="insSummary"></div>
+    <div class="ins-chart" id="insChart"><div class="hint">加载中…</div></div>
+    <div class="ins-bill-h">今日收益账单 <span class="hint" id="insBillSrc"></span></div>
+    <div class="bill" id="insBill"><div class="hint">暂无数据</div></div>
+  </div>
+
+  <div class="card" id="mileCard">
+    <h2>🎯 连签里程碑 <button class="hclear" id="mileRefresh">刷新</button></h2>
+    <div class="ms-list" id="mileList"><div class="hint">加载中…</div></div>
+    <div class="hint" id="mileMeta" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card" id="reportsCard">
+    <h2>🗂 历史报告 <button class="hclear" id="repRefresh">刷新</button></h2>
+    <div class="hint" id="repSummary" style="margin-bottom:8px">加载中…</div>
+    <div class="rep-list" id="repList"></div>
+  </div>
+
+  <div class="card" id="monitorCard">
+    <h2>🔍 接口失效监测 <button class="hclear" id="monRefresh">刷新</button></h2>
+    <div class="mon-head">
+      <span class="mon-state ok" id="monState">检测中…</span>
+      <span class="hint" id="monMeta"></span>
+    </div>
+    <div id="monBody"></div>
+  </div>
+</div>
+
+<div class="restore-hint">🖼 点击任意处恢复</div>
+
+<button class="gear" id="gear" title="设置" aria-label="设置">⚙</button>
+<div class="settings" id="settings">
+  <div class="settings-h">⚙ 设置</div>
+  <div class="settings-body" id="settingsBody">
+  <div class="row"><span>语言 / Language</span>
+    <div class="seg3" id="langSeg">
+      <button data-lang="zh" class="on">中文</button>
+      <button data-lang="en">English</button>
+      <button data-lang="ja">日本語</button>
+    </div>
+  </div>
+  <div class="row"><span>壁纸模式</span>
+    <div class="seg3" id="wpSeg">
+      <button data-wp="contain" class="on">完整</button>
+      <button data-wp="cover">铺满</button>
+      <button data-wp="stretch">拉伸</button>
+      <button data-wp="off">关闭</button>
+    </div>
+  </div>
+  <div class="row"><span>遮罩浓度</span>
+    <input type="range" id="veil" min="0" max="100" value="50">
+  </div>
+  <div class="row"><span>点击背景隐藏数据</span>
+    <label class="sw"><input type="checkbox" id="clickHide" checked><span class="track"></span></label>
+  </div>
+  <div class="row"><span>自定义壁纸</span>
+    <div class="seg3">
+      <label class="filebtn"><input type="file" id="wpFile" accept="image/*">选择图片</label>
+      <button id="wpReset">恢复默认</button>
+    </div>
+  </div>
+  <div class="row"><span>自动轮询</span>
+    <label class="sw"><input type="checkbox" id="pollToggle"><span class="track"></span></label>
+  </div>
+  <div class="row" id="pollIntRow"><span>轮询间隔</span>
+    <input type="range" id="pollInt" min="1" max="60" value="5">
+    <span class="ival" id="pollIntVal">5分</span>
+  </div>
+  <div class="row"><span>桌面通知</span>
+    <label class="sw"><input type="checkbox" id="notifyToggle" checked><span class="track"></span></label>
+  </div>
+  <div class="row"><span>默认展开原始 JSON</span>
+    <label class="sw"><input type="checkbox" id="jsonOpen"><span class="track"></span></label>
+  </div>
+  <div class="row"><span>暗色模式</span>
+    <label class="sw"><input type="checkbox" id="darkToggle"><span class="track"></span></label>
+  </div>
+  <div class="row"><span>壁纸轮播</span>
+    <label class="sw"><input type="checkbox" id="carouselOn"><span class="track"></span></label>
+  </div>
+  <div class="row off" id="carouselRow"><span>轮播间隔</span>
+    <input type="range" id="carouselInt" min="3" max="60" value="10">
+    <span class="ival" id="carouselIntVal">10秒</span>
+  </div>
+  <div class="row off" id="carouselRow2"><span>轮播图片</span>
+    <div class="seg3">
+      <label class="filebtn"><input type="file" id="carouselAdd" accept="image/*" multiple>＋添加</label>
+      <button id="carouselClear">清空</button>
+    </div>
+  </div>
+  <div class="row off" id="carouselRow3"><span></span><span class="ival" id="carouselCount">0 张</span></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const WB_TOKEN = (document.querySelector('meta[name="wb-token"]') || {}).content || '';
+function authHeaders(extra){
+  const h = Object.assign({}, extra || {});
+  if(WB_TOKEN) h['X-WB-Token'] = WB_TOKEN;
+  return h;
+}
+
+/* ---- 多语言（中文 / English / 日本語）---- */
+const I18N = {
+"WorkBuddy 自动签到 · 测试面板":["WorkBuddy Auto Check-in · Test Panel","WorkBuddy 自動チェックイン · テストパネル"],
+"🤖 WorkBuddy 自动签到 · 测试面板":["🤖 WorkBuddy Auto Check-in · Test Panel","🤖 WorkBuddy 自動チェックイン · テストパネル"],
+"点按钮跑一次 signin.py，结果以卡片直观呈现。脚本读取本机登录态，仅作用于你自己的账号。":["Run signin.py once and view the result as cards. It reads your local login state and only affects your own account.","signin.py を1回実行し、結果をカードで表示します。ローカルのログイン状態を読み取り、あなた自身のアカウントにのみ作用します。"],
+"完整运行 auto":["Full run (auto)","フル実行 (auto)"],
+"只读状态 status":["Read-only status","読み取り専用ステータス"],
+"就绪":["Ready","準備完了"],
+"▶ 运行测试":["▶ Run test","▶ テスト実行"],
+"尚未运行。点「运行测试」开始。":["Not run yet. Click \"Run test\" to start.","まだ実行していません。「テスト実行」をクリックしてください。"],
+"🕘 运行历史":["🕘 Run history","🕘 実行履歴"],
+"🗂 历史报告":["🗂 Report archive","🗂 レポート履歴"],
+"🔍 接口失效监测":["🔍 API drift monitor","🔍 API 改版監視"],
+"接口正常":["API healthy","API 正常"],
+"需观察":["Watch","要観察"],
+"疑似接口失效":["API drift suspected","API 改版の疑い"],
+"检测失败":["Check failed","チェック失敗"],
+"次运行":["runs","件"],
+"连续异常":["consecutive failures","連続異常"],
+"契约基线":["contract baseline","契約ベースライン"],
+"类结果":["result types","種類"],
+"现象":["Symptoms","現象"],
+"建议按顺序排查":["Try these in order","この順に確認"],
+"最近运行":["Recent runs","最近の実行"],
+"🎯 连签里程碑":["🎯 Streak milestones","🎯 連続達成マイルストーン"],
+"连签 %s 天":["%s-day streak","%s 日連続"],
+"还差 %s 天":["%s days to go","あと %s 日"],
+"还差 1 天":["1 day to go","あと 1 日"],
+"预计 %s 达成":["ETA %s","%s 達成見込み"],
+"已达成":["Reached","達成済み"],
+"当前连续":["Current streak","現在の連続"],
+"历史最长":["Best streak","最長連続"],
+"下一目标 %s 天":["Next goal: %s days","次の目標：%s 日"],
+"天":["days","日"],
+"打开报告":["Open","開く"],
+"原始数据":["Raw","生データ"],
+"份报告":["reports","件"],
+"最近":["latest","最新"],
+"失败":["Failed","失敗"],
+"还没有归档（跑一次报告后自动生成）":["No archive yet (created after a report run)","アーカイブはまだありません（レポート生成後に作成）"],
+"清空":["Clear","クリア"],
+"⏰ 定时任务":["⏰ Scheduled tasks","⏰ スケジュールタスク"],
+"刷新":["Refresh","更新"],
+"＋ 每日签到 00:05":["+ Daily 00:05","＋ 毎日 00:05"],
+"＋ 轮询补签 6 次/天":["+ Catch-up poll 6×/day","＋ 補填ポーリング 6回/日"],
+"🔔 让现有任务带上推送":["🔔 Add push to existing tasks","🔔 既存タスクに通知を追加"],
+"＋ 自定义新建 / 修改任务":["+ Custom create / edit task","＋ カスタム作成 / 編集"],
+"任务名":["Task name","タスク名"],
+"运行时间（HH:MM，多个用逗号分隔）":["Run times (HH:MM, comma-separated)","実行時刻（HH:MM、カンマ区切り）"],
+"运行模式":["Mode","実行モード"],
+"silent（每日签到，静默）":["silent (daily, quiet)","silent（毎日・サイレント）"],
+"silent-poll（轮询补签 + 成长中心）":["silent-poll (catch-up + growth)","silent-poll（補填 + 成長センター）"],
+"auto（完整运行）":["auto (full run)","auto（フル実行）"],
+"growth（仅成长中心）":["growth (growth center only)","growth（成長センターのみ）"],
+"运行后推送通知":["Push after run","実行後に通知"],
+"保存任务":["Save task","タスクを保存"],
+"🔔 推送通知":["🔔 Push notifications","🔔 プッシュ通知"],
+"启用推送":["Enable notifications","通知を有効化"],
+"推送渠道":["Channel","配信チャネル"],
+"企业微信机器人":["WeCom bot","WeCom ボット"],
+"钉钉机器人":["DingTalk bot","DingTalk ボット"],
+"飞书机器人":["Feishu bot","Feishu ボット"],
+"通用 Webhook":["Generic Webhook","汎用 Webhook"],
+"邮件 SMTP":["Email SMTP","メール SMTP"],
+"Webhook 地址":["Webhook URL","Webhook URL"],
+"密钥 / Token（钉钉加签、Telegram token、Bark key）":["Secret / Token (DingTalk sign, Telegram token, Bark key)","シークレット / Token（DingTalk 署名、Telegram token、Bark key）"],
+"SMTP 主机":["SMTP host","SMTP ホスト"],
+"端口":["Port","ポート"],
+"用户名":["Username","ユーザー名"],
+"密码 / 授权码":["Password / app password","パスワード / 認証コード"],
+"收件人":["Recipient","宛先"],
+"成功发摘要":["Success summary","成功サマリー"],
+"失败告警":["Failure alerts","失敗アラート"],
+"每日摘要":["Daily digest","デイリーダイジェスト"],
+"连续失败":["Consecutive failures","連続失敗"],
+"次才告警":["times before alert","回でアラート"],
+"保存":["Save","保存"],
+"发送测试":["Send test","テスト送信"],
+"🩺 日志与体检":["🩺 Logs & health","🩺 ログとヘルス"],
+"一键体检":["Run health check","ヘルスチェック"],
+"点「一键体检」检查解释器 / 凭据 / 网络 / 任务 / 推送 / 日志。":["Click \"Run health check\" to check interpreter / credentials / network / tasks / push / logs.","「ヘルスチェック」で、インタプリタ / 認証情報 / ネットワーク / タスク / 通知 / ログを確認します。"],
+"日志":["Logs","ログ"],
+"最近 100 行":["Last 100 lines","最新 100 行"],
+"200 行":["200 lines","200 行"],
+"500 行":["500 lines","500 行"],
+"📈 收益与趋势":["📈 Earnings & trends","📈 報酬と推移"],
+"今日收益账单":["Today's earnings","本日の報酬"],
+"⚙ 设置":["⚙ Settings","⚙ 設定"],
+"壁纸模式":["Wallpaper mode","壁紙モード"],
+"完整":["Fit","全体"],
+"铺满":["Cover","全体に敷く"],
+"拉伸":["Stretch","伸縮"],
+"关闭":["Off","オフ"],
+"遮罩浓度":["Overlay opacity","オーバーレイ濃度"],
+"点击背景隐藏数据":["Click background to hide","背景クリックで非表示"],
+"自定义壁纸":["Custom wallpaper","カスタム壁紙"],
+"选择图片":["Choose image","画像を選択"],
+"恢复默认":["Reset","デフォルトに戻す"],
+"自动轮询":["Auto polling","自動ポーリング"],
+"轮询间隔":["Polling interval","ポーリング間隔"],
+"桌面通知":["Desktop notifications","デスクトップ通知"],
+"默认展开原始 JSON":["Expand raw JSON by default","生 JSON を初期展開"],
+"暗色模式":["Dark mode","ダークモード"],
+"壁纸轮播":["Wallpaper slideshow","壁紙スライドショー"],
+"轮播间隔":["Slideshow interval","スライド間隔"],
+"轮播图片":["Slideshow images","スライド画像"],
+"＋添加":["+ Add","＋追加"],
+"0 张":["0 images","0 枚"],
+"10秒":["10s","10秒"],
+"5分":["5 min","5分"],
+"🖼 点击任意处恢复":["🖼 Click anywhere to restore","🖼 任意の場所をクリックで復元"],
+"https://...":["https://...","https://..."],
+"smtp.example.com":["smtp.example.com","smtp.example.com"],
+"you@example.com":["you@example.com","you@example.com"],
+"例如 01:00, 05:00, 09:00":["e.g. 01:00, 05:00, 09:00","例 01:00, 05:00, 09:00"],
+"例如 123456789":["e.g. 123456789","例 123456789"],
+"留空不改":["Leave blank to keep","空欄なら変更なし"],
+"已设置，留空不改":["Set; leave blank to keep","設定済み（空欄なら変更なし）"],
+"过滤关键词（如 ERROR / 失败 / 时间）":["Filter (e.g. ERROR / failure / time)","フィルタ（ERROR / 失敗 / 時刻など）"],
+"立即运行":["Run now","今すぐ実行"],
+"停用":["Disable","無効化"],
+"启用":["Enable","有効化"],
+"删除":["Delete","削除"],
+"已停用":["Disabled","無効"],
+"运行中":["Running","実行中"],
+"排队中":["Queued","待機中"],
+"未知":["Unknown","不明"],
+"从未运行":["Never run","未実行"],
+"下次":["Next","次回"],
+"上次":["Last","前回"],
+"下次签到 —":["Next check-in —","次回チェックイン —"],
+"⏰ 即将运行":["⏰ Starting soon","⏰ まもなく実行"],
+"⏳ 距下次签到 ":["⏳ Next check-in in ","⏳ 次回チェックインまで "],
+"小时":["h ","時間"],
+"分":["m ","分"],
+"秒":["s","秒"],
+"今天还没有收益记录（跑一次签到后生成）":["No earnings yet today (run a check-in first)","本日の報酬はまだありません（チェックイン実行後に生成）"],
+"来源 ":["From ","取得元 "],
+"通过":["OK","合格"],
+"提醒":["Warn","注意"],
+"异常":["Error","異常"],
+"体检中…（含一次只读状态请求，约几秒）":["Checking… (one read-only status request, a few seconds)","確認中…（読み取り専用のステータス取得、数秒）"],
+"正在检测…":["Checking…","確認中…"],
+"体检失败：":["Health check failed: ","ヘルスチェック失敗："],
+"加载中…":["Loading…","読み込み中…"],
+"加载失败：":["Load failed: ","読み込み失敗："],
+"没有匹配的日志行":["No matching log lines","一致するログ行なし"],
+"还没有 signin.log（还没跑过或日志被清空）":["No signin.log yet (not run, or log cleared)","signin.log がありません（未実行または消去済み）"],
+"读取失败：":["Read failed: ","読み取り失敗："],
+"暂无数据":["No data","データなし"],
+"保存中…":["Saving…","保存中…"],
+"已保存 ✓":["Saved ✓","保存しました ✓"],
+"保存失败：":["Save failed: ","保存失敗："],
+"发送中…":["Sending…","送信中…"],
+"测试已发送 ✓":["Test sent ✓","テスト送信済み ✓"],
+"发送失败：":["Send failed: ","送信失敗："],
+"已启用 · ":["Enabled · ","有効 · "],
+"未启用":["Disabled","無効"],
+"确定删除任务 ":["Delete task ","タスクを削除 "],
+"请填写任务名":["Please enter a task name","タスク名を入力してください"],
+"请填写运行时间":["Please enter run time","実行時刻を入力してください"],
+"操作失败：":["Operation failed: ","操作失敗："],
+"已更新：":["Updated: ","更新済み："],
+"无":["none","なし"],
+"请求出错":["Request error","リクエストエラー"],
+"完成 · 退出码 ":["Done · exit code ","完了 · 終了コード "],
+"失败 · 退出码 ":["Failed · exit code ","失敗 · 終了コード "],
+"正在调用 signin.py (":["Calling signin.py (","signin.py を呼び出し中 ("],
+"轮询中 · 每":["Polling · every ","ポーリング中 · "],
+"运行失败":["Run failed","実行失敗"],
+"今日已签 ✓":["Checked in today ✓","本日チェックイン済み ✓"],
+"待签到":["Not checked in","未チェックイン"],
+"需注意":["Attention","注意"],
+"需关注":["Attention","要確認"],
+"正常":["Normal","正常"],
+"成长中心已跑":["Growth center done","成長センター完了"],
+"网络错误":["Network error","ネットワークエラー"],
+"（无明细）":["(no details)","（明細なし）"],
+"（无输出）":["(no output)","（出力なし）"],
+"暂无记录，运行后会自动保存最近 ":["No records yet; the last ","まだ記録がありません。最新 "],
+" 次。":[" runs will be saved."," 回分を保存します。"],
+"把现有 WorkBuddy 任务改为「跑完推送」？\n（保留各自的时间点与模式）":["Change existing WorkBuddy tasks to push after run?\n(times and modes are preserved)","既存の WorkBuddy タスクを「実行後に通知」に変更しますか？\n（時刻とモードは保持されます）"],
+"今日 +":["Today +","本日 +"],
+"本周 +":["This week +","今週 +"],
+"本月 +":["This month +","今月 +"],
+"累计":["Total","累計"],
+"设置":["Settings","設定"],
+"成功":["success","成功"],
+"Python 解释器":["Python interpreter","Python インタプリタ"],
+"签到脚本":["Sign-in script","チェックインスクリプト"],
+"凭据 / 网络":["Credentials / network","認証情報 / ネットワーク"],
+"计划任务":["Scheduled tasks","スケジュールタスク"],
+"推送通知":["Push notifications","プッシュ通知"],
+"签到日志":["Sign-in log","チェックインログ"],
+"签到历史":["History","履歴"]
+};
+const PREFIX_KEYS = ["⏳ 距下次签到 ","下次 ","上次 ","已启用 · ","来源 ","已更新：","保存失败：","发送失败：","读取失败：","体检失败：","完成 · 退出码 ","失败 · 退出码 ","正在调用 signin.py (","轮询中 · 每","确定删除任务 ","暂无记录，运行后会自动保存最近 ","把现有 WorkBuddy 任务改为「跑完推送」？\n（保留各自的时间点与模式）"];
+let LANG = 'zh';
+try{ LANG = localStorage.getItem('wb-lang') || 'zh'; }catch(e){}
+if(LANG!=='zh' && LANG!=='en' && LANG!=='ja') LANG='zh';
+const _origText = new WeakMap();
+let LAST_PAYLOAD = null;
+function t(zh){
+  if(LANG==='zh') return zh;
+  const v=I18N[zh];
+  return v ? v[LANG==='en'?0:1] : zh;
+}
+function trText(raw){
+  if(LANG==='zh') return raw;
+  const key=String(raw).trim();
+  if(!key) return raw;
+  let out=null;
+  if(I18N[key]) out=t(key);
+  else {
+    let best=null;
+    for(const k of PREFIX_KEYS){ if(key.startsWith(k) && (!best || k.length>best.length)) best=k; }
+    if(best){
+      const rest=key.slice(best.length);
+      const rt=I18N[rest.trim()];
+      let pre, sep='';
+      if(I18N[best]){ pre=t(best); }
+      else {
+        pre=t(best.trim());
+        if(/\s$/.test(best) && pre && !pre.endsWith(' ')) sep=' ';
+      }
+      out=pre+sep+(rt ? t(rest.trim()) : rest);
+    }
+  }
+  if(out==null) out=key;
+  if(LANG!=='zh'){
+    out=out.replace(/尚未运行/g, LANG==='en' ? 'never run' : '未実行');
+    if(LANG==='en'){
+      out=out.replace(/(\d+) 项通过/g,'$1 passed').replace(/(\d+) 项提醒/g,'$1 warnings').replace(/(\d+) 项异常/g,'$1 errors');
+      out=out.replace(/(\d+) 次。/g,'$1 runs will be saved.');
+    }else{
+      out=out.replace(/(\d+) 项通过/g,'$1 件合格').replace(/(\d+) 项提醒/g,'$1 件注意').replace(/(\d+) 项异常/g,'$1 件異常');
+      out=out.replace(/(\d+) 次。/g,'$1 回分を保存します。');
+    }
+  }
+  if(LANG==='en'){
+    out=out.replace(/(\d+)\s*小时/g,'$1h ').replace(/(\d+)\s*分(?!钟)/g,'$1m ').replace(/(\d+)\s*秒/g,'$1s');
+  }else{
+    out=out.replace(/(\d+)\s*小时/g,'$1時間').replace(/(\d+)\s*分(?!钟)/g,'$1分').replace(/(\d+)\s*秒/g,'$1秒');
+  }
+  const lead=(raw.match(/^\s*/)||[''])[0], trail=(raw.match(/\s*$/)||[''])[0];
+  return lead+out+trail;
+}
+function translateNode(n){
+  const raw=n.nodeValue;
+  if(!raw || !raw.trim()) return;
+  if(!_origText.has(n)) _origText.set(n, raw);
+  const orig=_origText.get(n);
+  const out = LANG==='zh' ? orig : trText(orig);
+  if(n.nodeValue!==out) n.nodeValue=out;
+}
+function localizeDom(root){
+  if(!root) return;
+  const w=document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(n){
+      if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const p=n.parentElement;
+      if(p && p.closest('script,style')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const arr=[]; while(w.nextNode()) arr.push(w.currentNode);
+  arr.forEach(translateNode);
+  if(root.querySelectorAll){
+    root.querySelectorAll('input[placeholder]').forEach(function(el){
+      if(!el.dataset.origPh) el.dataset.origPh=el.placeholder;
+      el.placeholder = LANG==='zh' ? el.dataset.origPh : trText(el.dataset.origPh);
+    });
+    root.querySelectorAll('[title]').forEach(function(el){
+      if(!el.dataset.origTitle) el.dataset.origTitle=el.title;
+      el.title = LANG==='zh' ? el.dataset.origTitle : trText(el.dataset.origTitle);
+    });
+  }
+}
+function applyLang(){
+  document.documentElement.lang = LANG;
+  localizeDom(document.body);
+  const seg=$('#langSeg');
+  if(seg) seg.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', b.dataset.lang===LANG); });
+  document.title = t('WorkBuddy 自动签到 · 测试面板');
+  try{ localStorage.setItem('wb-lang', LANG); }catch(e){}
+}
+const mode = () => document.querySelector('input[name=m]:checked').value;
+
+/* ---- 设置：壁纸模式 / 遮罩浓度 / 点击隐藏 ---- */
+const gear = $('#gear'), panel = $('#settings');
+const wpSeg = $('#wpSeg'), veilInput = $('#veil'), clickHide = $('#clickHide');
+
+function applyWp(m){
+  document.body.classList.remove('wp-contain','wp-cover','wp-off');
+  document.body.classList.add('wp-'+m);
+  wpSeg.querySelectorAll('button').forEach(b=>b.classList.toggle('on', b.dataset.wp===m));
+  try{ localStorage.setItem('wb-wallpaper', m); }catch(e){}
+}
+wpSeg.addEventListener('click', e=>{
+  const b = e.target.closest('button[data-wp]'); if(!b) return;
+  applyWp(b.dataset.wp);
+});
+let savedWp = 'contain';
+try{ savedWp = localStorage.getItem('wb-wallpaper') || 'contain'; }catch(e){}
+if(!['contain','cover','stretch','off'].includes(savedWp)) savedWp='contain';
+applyWp(savedWp);
+
+function applyVeil(v){
+  document.documentElement.style.setProperty('--veil', (v/100).toFixed(3));
+  try{ localStorage.setItem('wb-veil', v); }catch(e){}
+}
+veilInput.addEventListener('input', ()=>applyVeil(+veilInput.value));
+let savedVeil = 50;
+try{ savedVeil = parseInt(localStorage.getItem('wb-veil') ?? '50',10) || 50; }catch(e){}
+veilInput.value = savedVeil; applyVeil(savedVeil);
+
+function applyClickHide(on){
+  document.body.classList.toggle('no-click-hide', !on);
+  try{ localStorage.setItem('wb-clickhide', on?'1':'0'); }catch(e){}
+}
+clickHide.addEventListener('change', ()=>applyClickHide(clickHide.checked));
+let savedHide = true;
+try{ savedHide = localStorage.getItem('wb-clickhide') !== '0'; }catch(e){}
+clickHide.checked = savedHide; applyClickHide(savedHide);
+
+// 自定义壁纸：选图替换 / 恢复默认
+const wpFile = $('#wpFile'), wpReset = $('#wpReset');
+function setWpImg(url){ document.documentElement.style.setProperty('--wp-img', url); }
+try{
+  const savedImg = localStorage.getItem('wb-wallpaper-img');
+  if(savedImg) setWpImg(savedImg);
+}catch(e){}
+wpFile.addEventListener('change', ()=>{
+  const f = wpFile.files && wpFile.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{ localStorage.setItem('wb-wallpaper-img', r.result); }
+    catch(err){ alert('图片体积过大，无法长期记忆，仅本次会话生效。'); }
+    setWpImg('url("'+r.result+'")');
+  };
+  r.readAsDataURL(f);
+});
+wpReset.addEventListener('click', ()=>{
+  setWpImg('url("wallpaper.jpg")');
+  try{ localStorage.removeItem('wb-wallpaper-img'); }catch(e){}
+  wpFile.value = '';
+});
+
+/* 设置面板：内容比视口高时，底部渐隐提示还能下拉 */
+const setBody = $('#settingsBody');
+function syncScrollHint(){
+  const b = setBody;
+  const more = b.scrollHeight - b.clientHeight > 2;
+  panel.classList.toggle('can-scroll', more);
+  panel.classList.toggle('at-end', !more ||
+    b.scrollTop + b.clientHeight >= b.scrollHeight - 3);
+}
+setBody.addEventListener('scroll', syncScrollHint, {passive:true});
+window.addEventListener('resize', syncScrollHint);
+if(window.ResizeObserver) new ResizeObserver(syncScrollHint).observe(setBody);
+syncScrollHint();
+
+gear.addEventListener('click', e=>{
+  e.stopPropagation();
+  panel.classList.toggle('open');
+  if(panel.classList.contains('open')) setTimeout(syncScrollHint, 30);
+});
+document.addEventListener('click', e=>{
+  if(!panel.contains(e.target) && e.target !== gear) panel.classList.remove('open');
+});
+
+/* ---- 点背景隐藏数据 / 再点恢复 ---- */
+document.addEventListener('click', e=>{
+  if(e.target.closest('.gear, #settings, .bar, .card, button, summary')) return;
+  if(document.body.classList.contains('no-click-hide')) return;
+  document.body.classList.toggle('hide-ui');
+});
+
+document.querySelectorAll('#mode input').forEach(r=>{
+  r.addEventListener('change',()=>{
+    document.querySelectorAll('#mode label').forEach(l=>l.classList.remove('on'));
+    r.closest('label').classList.add('on');
+  });
+});
+
+function badge(text,cls){return `<span class="badge ${cls}">${text}</span>`;}
+
+function render(d){
+  LAST_PAYLOAD = d;
+  const out = $('#out');
+  if(!d.ok){
+    out.innerHTML = `<div class="card"><h2>运行失败 ${badge('ERROR','b-bad')}</h2>
+      <div class="report">${esc(d.raw||d.error||'无输出')}</div></div>`;
+    return;
+  }
+  const x = d.data || {};
+  const rep = x.report || '';
+  // 把 report 按“；”拆成标签，按关键词着色
+  const items = rep.split('；').map(s=>s.trim()).filter(Boolean).map(t=>{
+    let cls='ok';
+    if(/失败|prerequisite not met|no active buddy|未解锁|INACTIVE/.test(t)) cls='fail';
+    else if(/已签过|今日名额已用完|还在路上|无需|跳过/.test(t)) cls='skip';
+    return `<span class="chip ${cls}">${esc(t)}</span>`;
+  }).join('');
+
+  const signed = /ALREADY|CLAIMED|今日已签|成功领取/.test(x.result||'') || /已签过|成功领取/.test(rep);
+  const signBadge = signed ? badge('今日已签 ✓','b-ok')
+    : (x.needs_attention ? badge('需注意','b-warn') : badge('待签到','b-warn'));
+  const attBadge = x.needs_attention ? badge('需关注','b-warn') : badge('正常','b-ok');
+  const growthBadge = (x.growth_result==='GROWTH') ? badge('成长中心已跑','b-ok')
+    : (x.growth_result ? badge(String(x.growth_result),'b-skip') : '');
+
+  out.innerHTML = `
+    <div class="grid">
+      <div class="metric"><div class="v">${x.streak_days??'—'}</div><div class="k">连续签到(天)</div></div>
+      <div class="metric"><div class="v">${x.total_credits??'—'}</div><div class="k">累计积分</div></div>
+      <div class="metric"><div class="v">${x.today_credit??'—'}</div><div class="k">今日积分</div></div>
+    </div>
+
+    <div class="card">
+      <h2>📅 签到 ${signBadge}</h2>
+      <div class="chips">${items||'<span class="chip">（无明细）</span>'}</div>
+    </div>
+
+    <div class="card">
+      <h2>🐱 成长中心 ${growthBadge} &nbsp; 整体 ${attBadge}</h2>
+      <div class="report">${esc(rep||'（无输出）')}</div>
+      <details${expandJson?' open':''}><summary>查看原始 JSON</summary><pre>${esc(JSON.stringify(x,null,2))}</pre></details>
+    </div>`;
+}
+
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+async function runTest(){
+  if(notifyOn && 'Notification' in window && Notification.permission==='default'){
+    Notification.requestPermission();
+  }
+  const btn = $('#run');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>运行中…';
+  $('#status').textContent='正在调用 signin.py ('+mode()+') …';
+  if(!document.querySelector('#out .card')){
+    $('#out').innerHTML='<div class="empty">⏳ 请求中，请稍候…</div>';
+  }
+  try{
+    const r = await fetch('/run?mode='+mode(), {headers:authHeaders()});
+    const d = await r.json();
+    render(d);
+    $('#status').textContent = d.ok ? '完成 · 退出码 '+d.exit_code : '失败 · 退出码 '+d.exit_code;
+    notifyDone(d);
+    if(d) pushHistory(d);
+    return d;
+  }catch(e){
+    $('#out').innerHTML='<div class="card">'+badge('网络错误','b-bad')+' '+esc(e)+'</div>';
+    $('#status').textContent='请求出错';
+    return null;
+  }finally{
+    btn.disabled=false; btn.innerHTML='▶ 运行测试';
+  }
+}
+
+$('#run').addEventListener('click', ()=>runTest());
+
+/* ---- 运行相关设置 ---- */
+// 1) 默认运行模式记忆
+document.querySelectorAll('#mode input').forEach(r=>{
+  r.addEventListener('change',()=>{
+    document.querySelectorAll('#mode label').forEach(l=>l.classList.remove('on'));
+    r.closest('label').classList.add('on');
+    try{ localStorage.setItem('wb-runmode', r.value); }catch(e){}
+  });
+});
+let savedMode='auto';
+try{ savedMode=localStorage.getItem('wb-runmode')||'auto'; }catch(e){}
+const initRadio=document.querySelector('#mode input[value="'+savedMode+'"]');
+if(initRadio){
+  initRadio.checked=true;
+  document.querySelectorAll('#mode label').forEach(l=>l.classList.remove('on'));
+  initRadio.closest('label').classList.add('on');
+}
+
+// 3) 桌面通知
+const notifyToggle=$('#notifyToggle');
+let notifyOn=true;
+try{ notifyOn=localStorage.getItem('wb-notify')!=='0'; }catch(e){}
+notifyToggle.checked=notifyOn;
+function beep(){
+  try{
+    const Ctx=window.AudioContext||window.webkitAudioContext; if(!Ctx) return;
+    const ctx=beep._ctx||(beep._ctx=new Ctx());
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='square'; o.frequency.value=720; g.gain.value=0.04;
+    o.connect(g); g.connect(ctx.destination); o.start();
+    setTimeout(()=>{ try{o.stop();}catch(e){} }, 200);
+  }catch(e){}
+}
+function notifyDone(d){
+  const x = d && d.data;
+  const ok = !!(d && d.ok);
+  // 标签页标题始终反映最新状态（轮询/手动都更新）
+  if(x){
+    document.title = (ok?'✅ ':'⚠️ ') + (x.streak_days!=null?x.streak_days+'天·':'') +
+      (x.total_credits!=null?x.total_credits+'分 ':'') + '| WorkBuddy 签到测试';
+  } else {
+    document.title = (ok?'✅ ':'⚠️ ') + 'WorkBuddy 签到测试';
+  }
+  if(!notifyOn) return;
+  if(!('Notification' in window)) return;
+  if(Notification.permission!=='granted') return;
+  const body = ok ? ('完成 · 退出码 '+d.exit_code) : '运行失败，请检查';
+  try{
+    new Notification(ok ? 'WorkBuddy 自动签到测试' : '🔴 自动签到测试 · 失败',
+      {body, requireInteraction: !ok});
+  }catch(e){}
+  if(!ok) beep();
+}
+notifyToggle.addEventListener('change',()=>{
+  notifyOn=notifyToggle.checked;
+  try{ localStorage.setItem('wb-notify', notifyOn?'1':'0'); }catch(e){}
+  if(notifyOn && 'Notification' in window && Notification.permission==='default'){
+    Notification.requestPermission();
+  }
+});
+
+// 2) 自动轮询
+const pollToggle=$('#pollToggle'), pollInt=$('#pollInt'),
+      pollIntVal=$('#pollIntVal'), pollIntRow=$('#pollIntRow');
+let pollTimer=null;
+function updIntLabel(){ pollIntVal.textContent=pollInt.value+'分'; }
+function stopPoll(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+function startPoll(){
+  stopPoll();
+  const mins=Math.max(1,+pollInt.value);
+  pollTimer=setInterval(()=>{ runTest(); }, mins*60000);
+  $('#status').textContent='轮询中 · 每'+mins+'分';
+}
+function applyPoll(on){
+  pollToggle.checked=on;
+  pollIntRow.classList.toggle('off', !on);
+  try{ localStorage.setItem('wb-poll', on?'1':'0'); }catch(e){}
+  if(on) startPoll();
+  else { stopPoll(); if($('#status').textContent.indexOf('轮询中')===0) $('#status').textContent='就绪'; }
+}
+let savedPoll=false;
+try{ savedPoll=localStorage.getItem('wb-poll')==='1'; }catch(e){}
+try{ pollInt.value=localStorage.getItem('wb-pollint')||'5'; }catch(e){}
+pollInt.addEventListener('input',()=>{
+  updIntLabel();
+  try{ localStorage.setItem('wb-pollint', pollInt.value); }catch(e){}
+  if(pollToggle.checked) startPoll();
+});
+pollToggle.addEventListener('change',()=>applyPoll(pollToggle.checked));
+updIntLabel();
+applyPoll(savedPoll);
+
+/* ---- 默认展开原始 JSON ---- */
+const jsonOpen=$('#jsonOpen');
+let expandJson=false;
+try{ expandJson=localStorage.getItem('wb-jsonopen')==='1'; }catch(e){}
+jsonOpen.checked=expandJson;
+jsonOpen.addEventListener('change',()=>{
+  expandJson=jsonOpen.checked;
+  try{ localStorage.setItem('wb-jsonopen', expandJson?'1':'0'); }catch(e){}
+});
+
+/* ---- 暗色模式 ---- */
+const darkToggle=$('#darkToggle');
+let darkOn=false;
+try{ darkOn=localStorage.getItem('wb-dark')==='1'; }catch(e){}
+darkToggle.checked=darkOn;
+document.body.classList.toggle('dark', darkOn);
+darkToggle.addEventListener('change',()=>{
+  darkOn=darkToggle.checked;
+  document.body.classList.toggle('dark', darkOn);
+  try{ localStorage.setItem('wb-dark', darkOn?'1':'0'); }catch(e){}
+});
+
+/* ---- 壁纸轮播 ---- */
+const carouselOn=$('#carouselOn'), carouselInt=$('#carouselInt'),
+      carouselIntVal=$('#carouselIntVal'), carouselAdd=$('#carouselAdd'),
+      carouselClear=$('#carouselClear'), carouselCount=$('#carouselCount'),
+      carouselRow=$('#carouselRow'), carouselRow2=$('#carouselRow2'), carouselRow3=$('#carouselRow3');
+let wpList=[], carouselTimer=null;
+try{ wpList=JSON.parse(localStorage.getItem('wb-wp-list')||'[]'); }catch(e){}
+function saveList(){
+  try{ localStorage.setItem('wb-wp-list', JSON.stringify(wpList)); }
+  catch(err){ alert('图片过多，无法长期记忆，仅本次会话生效。'); }
+}
+function updateCount(){ carouselCount.textContent=wpList.length+' 张'; }
+function startCarousel(){
+  stopCarousel();
+  if(!wpList.length) return;
+  let i=0;
+  const step=()=>{ setWpImg('url("'+wpList[i%wpList.length]+'")'); i++; };
+  step();
+  carouselTimer=setInterval(step, Math.max(3,+carouselInt.value)*1000);
+}
+function stopCarousel(){ if(carouselTimer){ clearInterval(carouselTimer); carouselTimer=null; } }
+function setCarousel(on){
+  carouselOn.checked=on;
+  [carouselRow,carouselRow2,carouselRow3].forEach(r=>r.classList.toggle('off', !on));
+  try{ localStorage.setItem('wb-carousel', on?'1':'0'); }catch(e){}
+  if(on) startCarousel(); else stopCarousel();
+}
+carouselAdd.addEventListener('change',()=>{
+  const files=carouselAdd.files; if(!files||!files.length) return;
+  let pending=files.length, done=0;
+  Array.from(files).forEach(f=>{
+    const r=new FileReader();
+    r.onload=()=>{ wpList.push(r.result); if(++done===pending){ saveList(); updateCount(); if(carouselOn.checked) startCarousel(); } };
+    r.readAsDataURL(f);
+  });
+  carouselAdd.value='';
+});
+carouselClear.addEventListener('click',()=>{
+  wpList=[]; saveList(); updateCount(); stopCarousel(); setWpImg('url("wallpaper.jpg")');
+});
+carouselInt.addEventListener('input',()=>{
+  carouselIntVal.textContent=carouselInt.value+'秒';
+  try{ localStorage.setItem('wb-carousel-int', carouselInt.value); }catch(e){}
+  if(carouselOn.checked) startCarousel();
+});
+carouselOn.addEventListener('change',()=>setCarousel(carouselOn.checked));
+try{ carouselInt.value=localStorage.getItem('wb-carousel-int')||'10'; }catch(e){}
+carouselIntVal.textContent=carouselInt.value+'秒';
+updateCount();
+let savedCarousel=false;
+try{ savedCarousel=localStorage.getItem('wb-carousel')==='1'; }catch(e){}
+setCarousel(savedCarousel);
+
+/* ---- 运行历史（最近 10 次）---- */
+const HKEY='wb-history', HMAX=10;
+function loadHistory(){ try{ return JSON.parse(localStorage.getItem(HKEY)||'[]'); }catch(e){ return []; } }
+function saveHistory(h){ try{ localStorage.setItem(HKEY, JSON.stringify(h.slice(0,HMAX))); }catch(e){} }
+function fmtTime(t){
+  const d=new Date(t), p=n=>String(n).padStart(2,'0');
+  return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+}
+function renderHistory(){
+  const h=loadHistory(), box=$('#historyList');
+  if(!h.length){ box.innerHTML='<div class="hint">暂无记录，运行后会自动保存最近 '+HMAX+' 次。</div>'; return; }
+  box.innerHTML=h.map(it=>{
+    const ic=it.ok?'🟢':'🔴';
+    const s=it.streak!=null?'连'+it.streak+'天':'';
+    const c=it.total!=null?'累'+it.total+'分':'';
+    const head=[ic, fmtTime(it.t), it.mode, s, c].filter(Boolean).join(' · ');
+    const rep=it.report?('<div class="hrep">'+esc(it.report)+'</div>'):'';
+    return '<div class="hrow"><b>'+head+'</b>'+rep+'</div>';
+  }).join('');
+}
+function pushHistory(d){
+  const x=d&&d.data||{};
+  const h=loadHistory();
+  h.unshift({
+    t:Date.now(), mode:mode(),
+    ok:!!(d&&d.ok), exit:d&&d.exit_code,
+    streak:x.streak_days, total:x.total_credits, today:x.today_credit,
+    report:(x.report||'').slice(0,60)
+  });
+  saveHistory(h);
+  renderHistory();
+}
+$('#hclear').addEventListener('click',()=>{ saveHistory([]); renderHistory(); });
+renderHistory();
+
+/* ---- 定时任务管理 ---- */
+function taskStateBadge(t){
+  if(!t.enabled) return badge('已停用','b-warn');
+  if(t.state==='运行中') return badge('运行中','b-ok');
+  return badge(t.state||'就绪','b-ok');
+}
+function renderTasks(tasks){
+  const box=$('#taskList');
+  if(!tasks.length){ box.innerHTML='<div class="hint">还没有定时任务。点上面的预设一键创建。</div>'; setupCountdown([]); return; }
+  box.innerHTML=tasks.map(t=>{
+    const times=(t.times||[]).join(' / ')||'—';
+    const next=t.next_run?('下次 '+t.next_run):'下次 —';
+    const last=t.last_run?('上次 '+t.last_run+' · '+t.last_result_text):'从未运行';
+    const pushTag=t.runner==='notify'?' · 🔔推送':'';
+    return '<div class="task-row">'+
+      '<div class="task-top">'+
+        '<span class="task-name">'+esc(t.name)+'</span>'+taskStateBadge(t)+
+        '<span class="task-actions">'+
+          '<button data-act="run" data-name="'+esc(t.name)+'">立即运行</button>'+
+          '<button data-act="'+(t.enabled?'disable':'enable')+'" data-name="'+esc(t.name)+'">'+(t.enabled?'停用':'启用')+'</button>'+
+          '<button class="danger" data-act="delete" data-name="'+esc(t.name)+'">删除</button>'+
+        '</span>'+
+      '</div>'+
+      '<div class="task-meta">⏰ '+esc(times)+' · '+esc(next)+pushTag+'</div>'+
+      '<div class="task-meta">🕘 '+esc(last)+'</div>'+
+    '</div>';
+  }).join('');
+  setupCountdown(tasks);
+}
+
+/* ---- 下次签到倒计时 ---- */
+var NEXT_RUN_TS = null;
+function fmtDur(ms){
+  if(ms <= 0) return '即将运行';
+  var s = Math.floor(ms/1000), h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
+  if(h > 0) return h+'小时'+m+'分';
+  if(m > 0) return m+'分'+(s%60)+'秒';
+  return (s%60)+'秒';
+}
+function tickCountdown(){
+  var el = $('#countdown'); if(!el) return;
+  if(!NEXT_RUN_TS){ el.textContent = '下次签到 —'; return; }
+  var ms = NEXT_RUN_TS - Date.now();
+  el.textContent = (ms <= 0) ? '⏰ 即将运行' : ('⏳ 距下次签到 '+fmtDur(ms));
+}
+function setupCountdown(tasks){
+  var ts = [];
+  (tasks || []).forEach(function(t){
+    if(t.enabled && t.next_run_ts){ ts.push(t.next_run_ts); }
+    else if(t.enabled && t.next_run){
+      var d = new Date(String(t.next_run).replace(' ', 'T'));
+      if(!isNaN(d)) ts.push(d.getTime());
+    }
+  });
+  NEXT_RUN_TS = ts.length ? Math.min.apply(null, ts) : null;
+  tickCountdown();
+}
+setInterval(tickCountdown, 1000);
+
+async function taskAction(body){
+  try{
+    const r=await fetch('/tasks',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'操作失败');
+    if(d.tasks) renderTasks(d.tasks);
+    return d;
+  }catch(e){
+    alert('操作失败：'+e.message);
+    return null;
+  }
+}
+async function loadTasks(){
+  const box=$('#taskList');
+  try{
+    const r=await fetch('/tasks');
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'加载失败');
+    renderTasks(d.tasks||[]);
+  }catch(e){
+    box.innerHTML='<div class="hint">加载失败：'+esc(e.message||e)+'</div>';
+  }
+}
+$('#taskList').addEventListener('click',async e=>{
+  const b=e.target.closest('button[data-act]'); if(!b) return;
+  const act=b.dataset.act, name=b.dataset.name;
+  if(act==='delete' && !confirm('确定删除任务 '+name+' ？')) return;
+  b.disabled=true;
+  await taskAction({action:act,name:name});
+  b.disabled=false;
+});
+document.querySelectorAll('.preset-btn').forEach(b=>{
+  b.addEventListener('click',async()=>{
+    b.disabled=true;
+    await taskAction({action:'create',preset:b.dataset.preset});
+    b.disabled=false;
+  });
+});
+$('#tCreate').addEventListener('click',async()=>{
+  const name=$('#tName').value.trim();
+  const times=$('#tTime').value.split(/[,，\s]+/).filter(Boolean);
+  const mode=$('#tMode').value;
+  if(!name){ alert('请填写任务名'); return; }
+  if(!times.length){ alert('请填写运行时间'); return; }
+  const d=await taskAction({action:'create',name:name,times:times,mode:mode,runner:$('#tRunner').checked?'notify':'signin'});
+  if(d){ $('#tMsg').textContent='已保存 ✓'; setTimeout(()=>{$('#tMsg').textContent='';},2500); }
+});
+$('#taskRefresh').addEventListener('click',loadTasks);
+loadTasks();
+
+$('#taskNotifyAll').addEventListener('click',async()=>{
+  if(!confirm('把现有 WorkBuddy 任务改为「跑完推送」？\n（保留各自的时间点与模式）')) return;
+  const d=await taskAction({action:'notify_all'});
+  if(d && d.result){
+    const up=(d.result.updated||[]).join('、');
+    const bad=(d.result.failed||[]).join('、');
+    alert('已更新：'+(up||'无')+(bad?('\n失败：'+bad):''));
+  }
+});
+
+/* ---- 推送通知配置 ---- */
+const CHANNEL_NAMES={wecom:'企业微信机器人',dingtalk:'钉钉机器人',feishu:'飞书机器人',bark:'Bark',telegram:'Telegram',generic:'通用 Webhook',email:'邮件 SMTP'};
+function updateChannelRows(){
+  const ch=$('#nChannel').value;
+  $('#nUrlRow').style.display = (ch==='email')?'none':'flex';
+  $('#nSecretRow').style.display = (ch==='dingtalk'||ch==='telegram')?'flex':'none';
+  $('#nChatRow').style.display = (ch==='telegram')?'flex':'none';
+  $('#nEmailRows').style.display = (ch==='email')?'flex':'none';
+  const ph={wecom:'企业微信机器人 Webhook',dingtalk:'钉钉机器人 Webhook',feishu:'飞书机器人 Webhook',
+            bark:'https://api.day.app/你的key',generic:'任意接收 JSON 的地址'};
+  $('#nUrl').placeholder = ph[ch] || 'https://...';
+}
+function notifyPayload(){
+  const p={
+    enabled:$('#nEnabled').checked,
+    channel:$('#nChannel').value,
+    telegram_chat_id:$('#nChat').value.trim(),
+    push_on_success:$('#nOnSuccess').checked,
+    push_on_failure:$('#nOnFailure').checked,
+    daily_summary:$('#nDaily').checked,
+    failure_threshold:Math.max(1,parseInt($('#nThreshold').value||'1',10)||1),
+    email:{host:$('#nHost').value.trim(),port:parseInt($('#nPort').value||'465',10)||465,
+           user:$('#nUser').value.trim(),to:$('#nTo').value.trim()}
+  };
+  const url=$('#nUrl').value.trim(); if(url) p.webhook_url=url;
+  const sec=$('#nSecret').value.trim(); if(sec) p.secret=sec;
+  const pass=$('#nPass').value; if(pass) p.email.password=pass;
+  return p;
+}
+async function loadNotify(){
+  try{
+    const r=await fetch('/notify'); const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'加载失败');
+    const c=d.config||{};
+    $('#nEnabled').checked=!!c.enabled;
+    $('#nChannel').value=c.channel||'generic';
+    $('#nUrl').value=''; $('#nSecret').value=''; $('#nPass').value='';
+    $('#nUrl').placeholder=(c._has&&c._has.webhook_url)?('已设置 '+c.webhook_url+'，留空不改'):'https://...';
+    $('#nSecret').placeholder=(c._has&&c._has.secret)?'已设置，留空不改':'留空不改';
+    $('#nChat').value=c.telegram_chat_id||'';
+    const em=c.email||{};
+    $('#nHost').value=em.host||''; $('#nPort').value=em.port||465;
+    $('#nUser').value=em.user||''; $('#nTo').value=em.to||'';
+    $('#nPass').placeholder=(c._has&&c._has.password)?'已设置，留空不改':'留空不改';
+    $('#nOnSuccess').checked=!!c.push_on_success;
+    $('#nOnFailure').checked=!!c.push_on_failure;
+    $('#nDaily').checked=!!c.daily_summary;
+    $('#nThreshold').value=c.failure_threshold||1;
+    $('#notifyState').textContent=c.enabled?('已启用 · '+(CHANNEL_NAMES[c.channel]||c.channel)):'未启用';
+    updateChannelRows();
+  }catch(e){ $('#notifyState').textContent='加载失败'; }
+}
+$('#nChannel').addEventListener('change',updateChannelRows);
+$('#nSave').addEventListener('click',async()=>{
+  $('#nMsg').textContent='保存中…';
+  try{
+    const r=await fetch('/notify',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify(notifyPayload())});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'保存失败');
+    $('#nMsg').textContent='已保存 ✓';
+    await loadNotify();
+  }catch(e){ $('#nMsg').textContent='保存失败：'+e.message; }
+});
+$('#nTest').addEventListener('click',async()=>{
+  $('#nMsg').textContent='发送中…';
+  try{
+    const r=await fetch('/notify/test',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify(notifyPayload())});
+    const d=await r.json();
+    if(d.ok){ $('#nMsg').textContent='测试已发送 ✓'+((d.result&&d.result.channel)?(' ('+d.result.channel+')'):''); await loadNotify(); }
+    else { $('#nMsg').textContent='发送失败：'+((d.result&&d.result.error)||d.error||'未知错误'); }
+  }catch(e){ $('#nMsg').textContent='发送失败：'+e.message; }
+});
+loadNotify();
+
+/* ---- 日志 & 体检 ---- */
+function healthBadge(st){
+  if(st==='ok') return badge('通过','b-ok');
+  if(st==='warn') return badge('提醒','b-warn');
+  if(st==='fail') return badge('异常','b-bad');
+  return badge(st||'—','b-warn');
+}
+async function runHealth(){
+  $('#healthMsg').textContent='体检中…（含一次只读状态请求，约几秒）';
+  $('#healthList').innerHTML='<div class="hint">正在检测…</div>';
+  try{
+    const r=await fetch('/health?deep=1',{headers:authHeaders()}); const d=await r.json();
+    $('#healthSummary').textContent=d.summary||'';
+    if(d.checks && d.checks.length){
+      $('#healthList').innerHTML=d.checks.map(c=>'<div class="health-row">'+healthBadge(c.status)+
+        '<span class="nm">'+esc(c.name)+'</span><span class="dt">'+esc(c.detail||'')+'</span></div>').join('');
+    }else{
+      $('#healthList').innerHTML='<div class="hint">'+esc(d.error||'无结果')+'</div>';
+    }
+  }catch(e){
+    $('#healthList').innerHTML='<div class="hint">体检失败：'+esc(e.message)+'</div>';
+  }finally{
+    $('#healthMsg').textContent='';
+  }
+}
+async function loadLogs(){
+  const n=$('#logLines').value, q=$('#logFilter').value.trim();
+  $('#logBox').innerHTML='<div class="hint">加载中…</div>';
+  try{
+    const r=await fetch('/logs?lines='+encodeURIComponent(n)+'&q='+encodeURIComponent(q));
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'读取失败');
+    if(!d.exists){ $('#logBox').innerHTML='<div class="hint">还没有 signin.log（还没跑过或日志被清空）</div>'; return; }
+    if(!d.lines || !d.lines.length){ $('#logBox').innerHTML='<div class="hint">没有匹配的日志行</div>'; return; }
+    // 连续相同（结果 + 文案一致）的日志合并为一条，避免满屏同一条红字
+    const groups=[];
+    d.lines.forEach(l=>{
+      const key=(l.result||'')+'|'+(l.msg||l.report||'');
+      const last=groups[groups.length-1];
+      if(last && last.key===key) last.items.push(l);
+      else groups.push({key:key, items:[l]});
+    });
+    $('#logBox').innerHTML=groups.map(g=>{
+      const l=g.items[0], n=g.items.length;
+      const text=(l.msg!==undefined && l.msg!==null)?l.msg:(l.report||'');
+      const head='<div class="log-line '+(l.level||'')+'">['+
+        (n>1?(esc(l.time||'?')+' ~ '+esc(g.items[n-1].time||'?')):esc(l.time||'?'))+'] '+
+        esc(l.result||'')+(text?(' · '+esc(text)):'')+
+        (n>1?('<span class="dup" title="点开查看每次的时间">重复 '+n+' 次</span>'):'')+'</div>';
+      if(n===1) return '<div class="log-group">'+head+'</div>';
+      // 跨天时带上日期，否则只留时分秒
+      const multiDay=(l.time||'').slice(0,10)!==(g.items[n-1].time||'').slice(0,10);
+      return '<div class="log-group">'+head+'<div class="log-more"><div class="log-times">'+
+        g.items.map(x=>esc((x.time||'').slice(multiDay?5:11)||'?')).join(' · ')+'</div></div></div>';
+    }).join('');
+    $('#logBox').querySelectorAll('.log-group').forEach(g=>{
+      if(!g.querySelector('.log-more')) return;
+      g.querySelector('.log-line').addEventListener('click',()=>g.classList.toggle('open'));
+      g.querySelector('.dup').addEventListener('click',e=>{
+        e.stopPropagation(); g.classList.toggle('open');
+      });
+    });
+  }catch(e){
+    $('#logBox').innerHTML='<div class="hint">读取失败：'+esc(e.message)+'</div>';
+  }
+}
+$('#healthRun').addEventListener('click',runHealth);
+$('#logRefresh').addEventListener('click',loadLogs);
+$('#logLines').addEventListener('change',loadLogs);
+$('#logFilter').addEventListener('keydown',e=>{ if(e.key==='Enter') loadLogs(); });
+loadLogs();
+
+/* ---- 收益与趋势 ---- */
+function fmtNum(x){ return (x===null||x===undefined)?'—':x; }
+function drawTrend(trend){
+  const box=$('#insChart');
+  if(!trend || !trend.length){ box.innerHTML='<div class="hint">暂无数据</div>'; return; }
+  const W=340,H=132,padL=8,padR=8,baseY=H-20,top=14;
+  const n=trend.length, gap=4;
+  const bw=(W-padL-padR-gap*(n-1))/n;
+  const max=Math.max(1, ...trend.map(t=>t.credit||0));
+  let s='';
+  trend.forEach((t,i)=>{
+    const v=t.credit||0;
+    const h=Math.round((baseY-top)*v/max);
+    const x=padL+i*(bw+gap);
+    const y=baseY-h;
+    if(v>0) s+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+bw.toFixed(1)+'" height="'+h+'" rx="3" fill="'+(t.is_today?'#1F6FEB':'#16a34a')+'" opacity="'+(t.is_today?1:.72)+'"></rect>';
+    if(v>0) s+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(y-3)+'" font-size="9" text-anchor="middle" fill="#6b7785">'+v+'</text>';
+    if(t.is_today || i===0 || i===n-1)
+      s+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(H-6)+'" font-size="9" text-anchor="middle" fill="'+(t.is_today?'#1F6FEB':'#8a97a6')+'">'+parseInt(t.date.slice(8),10)+'</text>';
+  });
+  s+='<line x1="'+padL+'" y1="'+baseY+'" x2="'+(W-padR)+'" y2="'+baseY+'" stroke="rgba(120,140,170,.35)" stroke-width="1"></line>';
+  box.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto">'+s+'</svg>';
+}
+async function loadInsights(){
+  try{
+    const r=await fetch('/insights'); const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'加载失败');
+    const s=d.summary||{};
+    const tiles=[['今日 +',s.today],['本周 +',s.week],['本月 +',s.month],['累计',s.total]];
+    $('#insSummary').innerHTML=tiles.map(function(it){
+      return '<div class="metric"><div class="v">'+fmtNum(it[1])+'</div><div class="k">'+it[0]+'</div></div>';
+    }).join('');
+    drawTrend(d.trend||[]);
+    const bill=d.bill||[];
+    $('#insBill').innerHTML = bill.length
+      ? bill.map(x=>'<div class="bill-item">'+esc(x)+'</div>').join('')
+      : '<div class="hint">今天还没有收益记录（跑一次签到后生成）</div>';
+    $('#insBillSrc').textContent = d.bill_source ? ('来源 '+d.bill_source)
+      : ('连续 '+(s.streak==null?'—':s.streak)+' 天');
+  }catch(e){
+    $('#insChart').innerHTML='<div class="hint">加载失败：'+esc(e.message)+'</div>';
+  }
+}
+$('#insRefresh').addEventListener('click',loadInsights);
+loadInsights();
+
+/* ---- 历史报告归档 ---- */
+function repBadge(it){
+  if(it.ok===true)  return '<span class="rep-badge ok">'+esc(it.result||'OK')+'</span>';
+  if(it.ok===false) return '<span class="rep-badge bad">'+esc(it.result||t('失败'))+'</span>';
+  return '<span class="rep-badge warn">—</span>';
+}
+async function loadReports(){
+  try{
+    const r=await fetch('/reports'); const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'加载失败');
+    const list=d.reports||[], st=d.status||{};
+    $('#repSummary').textContent = list.length
+      ? (list.length+' '+t('份报告')+' · '+t('最近')+' '+(st.latest||list[0].ts||''))
+      : t('还没有归档（跑一次报告后自动生成）');
+    $('#repList').innerHTML = list.length ? list.map(function(it){
+      const extra=[];
+      if(it.credit!=null) extra.push('+'+it.credit);
+      if(it.total!=null) extra.push('Σ '+it.total);
+      if(it.attempts!=null && it.attempts>1) extra.push('×'+it.attempts);
+      if(it.skipped) extra.push('skipped');
+      const evName = it.evidence || '';
+      const ev = (evName && it.has_evidence)
+        ? '<a href="/evidence?name='+encodeURIComponent(evName)+'" target="_blank" rel="noopener">'+t('原始数据')+'</a>'
+        : '<a class="off">'+t('原始数据')+'</a>';
+      const rep = (it.file && it.has_report !== false)
+        ? '<a href="/report?name='+encodeURIComponent(it.file)+'" target="_blank" rel="noopener">'+t('打开报告')+'</a>'
+        : '<a class="off">'+t('打开报告')+'</a>';
+      return '<div class="rep-row">'+repBadge(it)+
+        '<span class="rep-time">'+esc(it.ts||'')+'</span>'+
+        '<span class="rep-meta">'+esc(extra.join(' · ')||it.mode||'')+'</span>'+
+        '<span class="rep-act">'+rep+ev+'</span>'+
+      '</div>';
+    }).join('') : '<div class="hint">—</div>';
+  }catch(e){
+    $('#repSummary').textContent='加载失败：'+e.message;
+    $('#repList').innerHTML='';
+  }
+}
+$('#repRefresh').addEventListener('click',loadReports);
+loadReports();
+
+/* ---- 连签里程碑 ---- */
+function tf(zh){ let s=t(zh); for(let i=1;i<arguments.length;i++){ s=s.replace('%s',arguments[i]); } return s; }
+async function loadMilestones(){
+  try{
+    const r=await fetch('/milestones'); const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'加载失败');
+    const ms=d.milestones||[];
+    $('#mileList').innerHTML = ms.length ? ms.map(function(m){
+      const pct=Math.round((m.progress||0)*100);
+      const gap = m.reached ? t('已达成') : (m.remaining===1 ? t('还差 1 天') : tf('还差 %s 天', m.remaining));
+      const eta = (!m.reached && m.eta) ? '<div class="ms-eta">'+tf('预计 %s 达成', m.eta)+'</div>' : '';
+      return '<div class="ms-item'+(m.reached?' done':'')+'">'+
+        '<div class="ms-top"><span>'+tf('连签 %s 天', m.days)+'</span>'+
+        '<span class="ms-gap">'+gap+'</span></div>'+
+        '<div class="ms-bar"><div class="ms-fill" style="width:'+pct+'%"></div></div>'+eta+'</div>';
+    }).join('') : '<div class="hint">—</div>';
+    const parts=[t('当前连续')+' '+(d.streak||0)+' '+t('天')];
+    if(d.best) parts.push(t('历史最长')+' '+d.best+' '+t('天'));
+    if(d.next) parts.push(tf('下一目标 %s 天', d.next.days));
+    $('#mileMeta').textContent = parts.join(' · ');
+  }catch(e){
+    $('#mileList').innerHTML='<div class="hint">加载失败：'+esc(e.message)+'</div>';
+    $('#mileMeta').textContent='';
+  }
+}
+$('#mileRefresh').addEventListener('click',loadMilestones);
+loadMilestones();
+
+/* ---- 接口失效监测 ---- */
+async function loadMonitor(){
+  try{
+    const r=await fetch('/monitor'); const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'加载失败');
+    const st=d.state||'ok', c=d.counts||{}, b=d.baseline||{};
+    const el=$('#monState');
+    el.className='mon-state '+st;
+    el.textContent = st==='drift' ? t('疑似接口失效') : (st==='watch' ? t('需观察') : t('接口正常'));
+    $('#monMeta').textContent = t('最近')+' '+(c.total||0)+' '+t('次运行')+' · '+
+      t('连续异常')+' '+(d.consecutive_failures||0)+' · '+
+      t('契约基线')+' '+(b.count||0)+' '+t('类结果');
+    let h='';
+    if((d.signals||[]).length){
+      h+='<div class="mon-block'+(st==='drift'?' drift':'')+'"><h3>'+t('现象')+'</h3><ul>'+
+         d.signals.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div>';
+    }
+    if((d.advice||[]).length){
+      h+='<div class="mon-block"><h3>'+t('建议按顺序排查')+'</h3><ol>'+
+         d.advice.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ol></div>';
+    }
+    const runs=d.runs||[];
+    if(runs.length){
+      h+='<div class="mon-block" style="padding:8px 10px"><h3>'+t('最近运行')+'</h3>'+
+        '<div class="rep-list">'+runs.slice(0,8).map(function(it){
+          const sev = it.severity==='ok'?'ok':(it.severity==='drift'?'bad':'warn');
+          const ev = it.evidence
+            ? '<a href="/evidence?name='+encodeURIComponent(it.evidence)+'" target="_blank" rel="noopener" style="font-size:11px;color:var(--brand);flex:0 0 auto">'+t('原始数据')+'</a>'
+            : '';
+          return '<div class="mon-run"><span class="rep-badge '+sev+'">'+esc(it.result||it.severity||'—')+'</span>'+
+                 '<span class="t">'+esc((it.ts||'').slice(5))+'</span>'+
+                 '<span class="rep-meta">'+esc(it.report||it.desc||'')+'</span>'+ev+'</div>';
+        }).join('')+'</div></div>';
+    }
+    $('#monBody').innerHTML=h;
+  }catch(e){
+    const el=$('#monState');
+    if(el){ el.className='mon-state watch'; el.textContent=t('检测失败'); }
+    $('#monBody').innerHTML='<div class="hint">'+esc(e.message)+'</div>';
+  }
+}
+$('#monRefresh').addEventListener('click',loadMonitor);
+loadMonitor();
+
+/* ---- 语言切换 ---- */
+function refreshDynamic(){
+  try{ loadTasks(); }catch(e){}
+  try{ loadNotify(); }catch(e){}
+  try{ loadLogs(); }catch(e){}
+  try{ loadInsights(); }catch(e){}
+  try{ loadReports(); }catch(e){}
+  try{ loadMonitor(); }catch(e){}
+  try{ loadMilestones(); }catch(e){}
+  if(LAST_PAYLOAD){ try{ render(LAST_PAYLOAD); }catch(e){} }
+}
+$('#langSeg').addEventListener('click', function(e){
+  const b = e.target.closest('button[data-lang]'); if(!b) return;
+  LANG = b.dataset.lang;
+  applyLang();
+  refreshDynamic();
+});
+/* 动态渲染出来的新文本自动翻译 */
+let _localizing = false, _locTimer = null;
+const _locObs = new MutationObserver(function(){
+  if(_localizing) return;
+  clearTimeout(_locTimer);
+  _locTimer = setTimeout(function(){
+    _localizing = true;
+    try{ localizeDom(document.body); }finally{ _localizing = false; }
+  }, 60);
+});
+_locObs.observe(document.body, {childList:true, subtree:true, characterData:true});
+applyLang();
+</script>
+</body>
+</html>
